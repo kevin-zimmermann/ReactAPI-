@@ -3,7 +3,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('form');
 
     if (form) {
-        const processFile = "traitement.php";
+        const processFile = "traitementTest.php";
         getAllUsers(processFile);
         submittedForm(processFile, form);
         checkValueForm(processFile, form);

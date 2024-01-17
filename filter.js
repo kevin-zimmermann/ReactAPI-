@@ -14,7 +14,7 @@ window.addEventListener('DOMContentLoaded', () => {
         getAllProductsWithFilter(processFile);
     }
 
-    // Cette fonction va nous permettre de récupérer tous les produits + avec les filtres en BDD (cf: traitement.php)
+    // Cette fonction va nous permettre de récupérer tous les produits + avec les filtres en BDD (cf: traitementTest.php)
     function getAllProductsWithFilter(action) {
         for (input of inputs) {
 
