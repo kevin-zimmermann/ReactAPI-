@@ -3,6 +3,8 @@ ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 require_once 'vendor/autoload.php';
+require_once 'class/Autoloader.php';
+
 
 use \Firebase\JWT\JWT;
 use \Firebase\JWT\Key;
@@ -12,10 +14,12 @@ header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
 header('Content-Type: application/json');
 
-$bdd = new PDO('mysql:dbname=test;host=localhost', 'root', '');
+//$bdd = new PDO('mysql:dbname=test;host=localhost', 'root', '');
 $secret_key = "KZ2023LpTM";
 //
 $message = [];
+$message["err"] = [];
+$quotes = new Quotes();
 
 
 function getAuthorizationToken()
@@ -84,43 +88,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // REGISTER
     if ($_POST['page'] === 'register') {
         if ($_POST['login'] === "" && $_POST['password'] === "" && $_POST['email'] === "") {
-            $message['err'] = "Veuillez remplir les champs";
+            $message["err"][] = "Veuillez remplir les champs";
+//            $message['err'][] .= "Veuillez remplir les champs";
         } else {
-
             if (isset($_POST['login'])) {
-
                 if (strlen($_POST['login']) <= 3) {
-                    $message['err'] = 'login trop court';
+                    $message['err'][] .= 'login trop court';
                 } else {
                     $login = htmlspecialchars($_POST['login']);
                     $stmt = $bdd->prepare('SELECT * FROM users WHERE login = ?');
                     $stmt->execute([$login]);
                     if ($stmt->rowCount() > 0) {
-                        $message['err'] = $login . ' existe déjà';
+                        $message["err"][] = $login . ' existe déjà';
 
-                    } else {
-                        $message[] = $login . ' n existe pas';
-                        if ($_POST['email'] && $_POST['password']) {
-                            if (filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
-                                $email = htmlspecialchars($_POST['email']);
-                                $password = $_POST['password'];
+                    }
+                    if ($_POST['email'] && $_POST['password']) {
+                        if (filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
+                            $email = htmlspecialchars($_POST['email']);
+                            $password = $_POST['password'];
 
-                                $password = password_hash($password, PASSWORD_BCRYPT);
+                            $password = password_hash($password, PASSWORD_BCRYPT);
 
+                            $stmt = $bdd->prepare('SELECT * FROM users WHERE email = ?');
+                            $stmt->execute([$email]);
+                            if ($stmt->rowCount() > 0) {
+
+                                $message['err'][] .= $email . ' existe déjà';
+
+                            } else {
                                 $stmtInsert = $bdd->prepare('INSERT INTO users (login,password,email) VALUES(?,?,?)');
                                 $stmtInsert->execute([$login, $password, $email]);
-                                $message['err']['status'] = 'utilisateur bien enregistré !';
-                            } else {
-                                $message['err']="Vous nous avez pas fourni un email";
+                                $message['success']['status'] .= 'utilisateur bien enregistré !';
                             }
 
-                        }else{
-                            $message['err'] = 'Veuillez remplir le MDP et/ou l\'email';
+                        } else {
+                            $message['err'][] .= "Vous nous avez pas fourni un email";
                         }
+
+                    } else {
+                        $message['err'][] .= 'Veuillez remplir le MDP et/ou l\'email';
                     }
                 }
-
             }
+
         }
     }
     // LOGIN
@@ -132,7 +142,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($stmt->rowCount() == 0) {
-                $message['err'] = 'Aucun utilisateur a été trouvé';
+                $message['err'][] = 'Aucun utilisateur a été trouvé';
 
             } else {
                 if ($_POST['password']) {
@@ -152,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $token = JWT::encode($payload, $secret_key, 'HS256');
                         $message['token'] = $token;
                     } else {
-                        $message['err'] = 'Aucun utilisateur a été trouvé';
+                        $message['err'][] = 'Aucun utilisateur a été trouvé';
                     }
 
                 }
@@ -225,17 +235,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($_POST['page'] === 'getUser') {
         AuthBearerTokenVerify($secret_key);
 
-            $id = $_POST['id'];
+        $id = $_POST['id'];
 
-            $stmt = $bdd->prepare('SELECT id,login,email FROM users WHERE id = ? ');
-            $stmt->execute([$id]);
-            $result = $stmt->fetch(PDO::FETCH_ASSOC);
-            if ($result === false){
-                $message['result'] = "Aucun utilisateur ne correspond";
-            }else{
-                $message['result'] = $result;
-            }
+        $stmt = $bdd->prepare('SELECT id,login,email FROM users WHERE id = ? ');
+        $stmt->execute([$id]);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($result === false) {
+            $message['result'] = "Aucun utilisateur ne correspond";
+        } else {
+            $message['result'] = $result;
         }
+    }
+
+//    if ($_POST['page'] === 'createQuote') {
+////        AuthBearerTokenVerify($secret_key);
+//        $message['err'] = "ah";
+//    }
 
 }
 
