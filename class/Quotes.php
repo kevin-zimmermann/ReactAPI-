@@ -2,10 +2,6 @@
 
 #[AllowDynamicProperties] class Quotes extends Bdd
 {
-    private $id;
-    public $quote;
-    private $date;
-    private $user_id;
 
     public function __construct()
     {
@@ -17,89 +13,41 @@
         }
     }
 
-//    /**
-//     * @return mixed
-//     */
-//    public function getDate()
-//    {
-//        return $this->date;
-//    }
-//
-//    /**
-//     * @return mixed
-//     */
-//    public function getQuote()
-//    {
-//        return $this->quote;
-//    }
-//
-//    /**
-//     * @return mixed
-//     */
-//    public function getId()
-//    {
-//        return $this->id;
-//    }
-//
-//    /**
-//     * @return mixed
-//     */
-//    public function getUserId()
-//    {
-//        return $this->user_id;
-//    }
-//
-//    /**
-//     * @param mixed $quote
-//     */
-//    public function setQuote($quote): void
-//    {
-//        $this->quote = $quote;
-//    }
-//
-//    /**
-//     * @param mixed $date
-//     */
-//    public function setDate($date): void
-//    {
-//        $this->date = $date;
-//    }
-//
-//    /**
-//     * @param mixed $user_id
-//     */
-//    public function setUserId($user_id): void
-//    {
-//        $this->user_id = $user_id;
-//    }
-
     public function createQuote()
     {
         $response = ['success' => '', 'err' => ''];
-        $userToken = new UserToken();
-        $userToken->AuthBearerTokenVerify();
-        $user_id = intval($userToken->AuthBearerTokenVerify()->user_id);
-        $date = time();
+        $user = new Users();
+        $infoUser = $user->isUser();
 
-        if(!empty($_POST['quote']) && strlen($_POST['quote']) < 1000){
-            $stmtInsert = $this->bdd->prepare('INSERT INTO quotes (quote,user_id,date) VALUES(?,?,?)');
-            $stmtInsert->execute([$_POST['quote'], $user_id, $date]);
-            $response['success'] .= 'Citation bien enregistré !';
+       if($infoUser['is_user'] === true){
+           $date = time();
 
-        }elseif (strlen($_POST['quote']) > 1000){
-            $response['err'] .= 'Votre citation a plus de 1000 caractères!';
-        }elseif (empty($_POST['quote'])){
-            $response['err'] .= 'Votre citation est vide...';
-        }
-        return $response;
+           if (!empty($_POST['quote']) && strlen($_POST['quote']) < 1000) {
+               $stmtInsert = $this->bdd->prepare('INSERT INTO quotes (quote,user_id,date) VALUES(?,?,?)');
+               $stmtInsert->execute([$_POST['quote'], $infoUser['infoUser']->user_id, $date]);
+               $response['success'] .= 'Citation bien enregistré !';
+
+           } elseif (strlen($_POST['quote']) > 1000) {
+               $response['err'] .= 'Votre citation a plus de 1000 caractères!';
+           } elseif (empty($_POST['quote'])) {
+               $response['err'] .= 'Votre citation est vide...';
+           }
+
+       }
+            return $response;
+
     }
     public function modifyQuote(){
 
         $response = [];
         $userToken = new UserToken();
-        $id = intval($userToken->AuthBearerTokenVerify()->user_id);
+        $userToken->AuthBearerTokenVerify();
+        //Verification TOKEN
+        $token = $userToken->getAuthorizationToken();
+        if ($token) {
+            $infoUser = \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($userToken->getSecretKey(), 'HS256'));
 
-        if (isset($_POST['quote'])) {
+            if (isset($_POST['quote'])) {
 
             if (strlen($_POST['login']) <= 3) {
                 $response['err'] = 'login trop court';
@@ -121,12 +69,13 @@
                         $password = password_hash($password, PASSWORD_BCRYPT);
 
                         $stmtInsert = $this->bdd->prepare('UPDATE quotes SET is_modified = ? ,quote = ? WHERE id = ? AND user_id = ? ');
-                        $stmtInsert->execute([1, $password, $email, $id]);
+                        $stmtInsert->execute([1, $password, $email, $infoUser->id]);
                         $response['err'] = 'Citation bien mis à jour !';
 
                     }
                 }
             }
+        }
 
         }
         return $response;
@@ -138,22 +87,39 @@
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
     public function showQuotes(){
-        $oneDayinSeconds = time() + 86400;
-        $stmt = $this->bdd->prepare('SELECT * FROM quotes WHERE date < ?');
+        $oneDayinSeconds = time() - 86400;
+        $stmt = $this->bdd->prepare('SELECT quotes.*, users.login AS username FROM quotes INNER JOIN users ON quotes.user_id = users.id WHERE quotes.date > ? ORDER BY quotes.date DESC');
         $stmt->execute([$oneDayinSeconds]);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if($stmt->rowCount() === 0){
+            return ["Aucune citation n'a été ajoutée ces 24 dernières heures"];
+        }else{
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
 
     }
-    public function showQuotesByUser($id){
-        $stmt = $this->bdd->prepare('SELECT * FROM quotes WHERE id_user = ?');
-        $stmt->execute([$id]);
+    public function showQuotesByUser(){
+        $userToken = new UserToken();
+        $user = $userToken->AuthBearerTokenVerify();
+        $token = $userToken->getAuthorizationToken();
+
+        //Verification TOKEN
+        if ($user && $token) {
+            $stmt = $this->bdd->prepare('SELECT * FROM quotes WHERE user_id = ? ORDER BY date DESC');
+            $stmt->execute([$user['infoUser']->user_id]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
     }
-    public function deleteQuote($id){
+    public function deleteQuote(){
+        $response = [] ;
+        $user = new Users();
+        $infoUser = $user->isUser();
+        if($infoUser && $infoUser['is_user'] === true){
+            $stmt = $this->bdd->prepare('DELETE FROM quotes WHERE id = ? AND user_id = ?');
+            $stmt->execute([$_POST['idQuoteToDelete'],$infoUser['infoUser']->user_id]);
+            $response['status'] = "Citation supprimé";
+        }
+        return $response;
 
-        $stmt = $this->bdd->prepare('DELETE FROM quotes WHERE id = ?');
-        $stmt->execute([$id]);
-
-        $response['status'] = "Citation supprimé";
     }
 
 }

@@ -112,7 +112,7 @@
     public function editProfil(){
         $response= [];
         $userToken = new UserToken();
-        $id = intval($userToken->AuthBearerTokenVerify()->user_id);
+        $id = intval($userToken->AuthBearerTokenVerify()['userInfo']->user_id);
 
         if (isset($_POST['login'])) {
 
@@ -149,28 +149,8 @@
     }
     
     public function isUser(){
-        $response= [];
         $userToken = new UserToken();
-        $userToken->AuthBearerTokenVerify();
-        //Verification TOKEN
-        $token = $userToken->getAuthorizationToken();
-        if ($token) {
-            $infoUser = \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($userToken->getSecretKey(), 'HS256'));
-            $stmt = $this->bdd->prepare('SELECT COUNT(*) FROM users WHERE login = ? AND id = ? AND email = ?');
-            $stmt->execute([$infoUser->login, $infoUser->user_id, $infoUser->email]);
-            $result = $stmt->fetch(PDO::FETCH_NUM);
-
-            if ($result === 0) {
-                $response['is_user'] = false;
-            } else {
-                $response['is_user'] = true;
-                $response['infoUser'] = $infoUser;
-
-            }
-        } else {
-            $response['is_user'] = false;
-        }
-        return $response;
+        return $userToken->AuthBearerTokenVerify();
     }
 
     public function getUserById(){

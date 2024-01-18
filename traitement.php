@@ -28,11 +28,11 @@ $userToken = new UserToken();
 $user = new Users();
 
 
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    if (isset($_GET['users'])) {
-        $response = $user->getAllUsers();
-    }
-}
+//if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+//    if (isset($_GET['users'])) {
+//        $response = $user->getAllUsers();
+//    }
+//}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $contentJson = file_get_contents('php://input');
@@ -70,6 +70,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $response = $quotes->createQuote();
     }
 
+    //Get last 24hours citations
+    if ($_POST['page'] === 'getOneDayQuotes') {
+        $response = $quotes->showQuotes();
+    }
+    if ($_POST['page'] === 'showQuotesByUser') {
+        $response = $quotes->showQuotesByUser();
+    }
+    if ($_POST['page'] === 'deleteQuote') {
+        $response = $quotes->deleteQuote();
+    }
 
 }
 

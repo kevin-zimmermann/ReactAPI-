@@ -1,13 +1,19 @@
 <?php
 
 
-class UserToken
+#[AllowDynamicProperties] class UserToken extends Bdd
 {
     private string $secret_key;
 
     public function __construct()
     {
         $this->secret_key = SECRET_KEY;
+        try {
+            $this->bdd = new PDO($this->getPdo(), $this->getUsername());
+            $this->bdd->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        } catch (PDOException $e) {
+            echo "Connection failed: " . $e->getMessage();
+        }
 
     }
 
@@ -28,8 +34,9 @@ class UserToken
             return $headers['Authorization'];
         }
 
-        return $headers['Authorization'] ?? '';
+        return $this->deleteBearerFromToken($headers['Authorization']) ?? '';
     }
+
     private function deleteBearerFromToken($token)
     {
 
@@ -43,7 +50,7 @@ class UserToken
 
     public function AuthBearerTokenVerify()
     {
-
+        $response = [];
         $token = $this->getAuthorizationToken();
 
 
@@ -54,9 +61,18 @@ class UserToken
         }
 
         try {
-            $newToken = $this->deleteBearerFromToken($token);
-            $decodedToken = \Firebase\JWT\JWT::decode($newToken, new \Firebase\JWT\Key($this->secret_key, 'HS256'));
+            $decodedToken = \Firebase\JWT\JWT::decode($token, new \Firebase\JWT\Key($this->secret_key, 'HS256'));
+            $stmt = $this->bdd->prepare('SELECT COUNT(*) FROM users WHERE login = ? AND id = ? AND email = ?');
+            $stmt->execute([$decodedToken->login, $decodedToken->user_id, $decodedToken->email]);
+            $result = $stmt->fetch(PDO::FETCH_NUM);
 
+            if ($result === 0) {
+                $response['is_user'] = false;
+            } else {
+                $response['is_user'] = true;
+                $response['infoUser'] = $decodedToken;
+
+            }
             // Check token expiration
             if ($decodedToken->login === '') {
 
@@ -69,7 +85,7 @@ class UserToken
             http_response_code(401); // Unauthorized (Invalid token or signature)
             exit;
         }
-        return $decodedToken;
+        return $response;
 
     }
 
