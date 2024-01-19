@@ -15,10 +15,13 @@
         } catch (PDOException $e) {
             echo "Connection failed: " . $e->getMessage();
         }
+
     }
+
     public function register()
     {
-        $response= [];
+        $response = ['success' => [], 'err' => [], 'status' => [], 'data' => []];
+
         if ($_POST['login'] === "" && $_POST['password'] === "" && $_POST['email'] === "") {
             $response["err"][] = "Veuillez remplir les champs";
 //            $response['err'][] .= "Veuillez remplir les champs";
@@ -38,19 +41,26 @@
                         if (filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
                             $email = $_POST['email'];
                             $password = $_POST['password'];
-
-                            $password = password_hash($password, PASSWORD_BCRYPT);
-
-                            $stmt = $this->bdd->prepare('SELECT * FROM users WHERE email = ?');
-                            $stmt->execute([$email]);
-                            if ($stmt->rowCount() > 0) {
-
-                                $response['err'][] .= $email . ' existe déjà';
-
+                            $password_regex = "/^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$/";
+                            if (!preg_match($password_regex, $password)) {
+                                $response['err'][] .= 'Votre mot de passe doit contenir au moins 8 caractères, une lettre en majuscule, une lettre en minuscule, un chiffre et un caractère spécifique';
                             } else {
-                                $stmtInsert = $this->bdd->prepare('INSERT INTO users (login,password,email) VALUES(?,?,?)');
-                                $stmtInsert->execute([$login, $password, $email]);
-                                $response['success']['status'] .= 'utilisateur bien enregistré !';
+
+
+                                $password = password_hash($password, PASSWORD_BCRYPT);
+
+
+                                $stmt = $this->bdd->prepare('SELECT * FROM users WHERE email = ?');
+                                $stmt->execute([$email]);
+                                if ($stmt->rowCount() > 0) {
+
+                                    $response['err'][] .= $email . ' existe déjà';
+
+                                } else {
+                                    $stmtInsert = $this->bdd->prepare('INSERT INTO users (login,password,email) VALUES(?,?,?)');
+                                    $stmtInsert->execute([$login, $password, $email]);
+                                    $response['success']['status'] .= 'utilisateur bien enregistré !';
+                                }
                             }
 
                         } else {
@@ -67,13 +77,16 @@
         return $response;
 
     }
-    public function login(){
 
-        $response= [];
+    public function login()
+    {
+
+        $response = ['success' => [], 'err' => [], 'status' => [], 'data' => []];
+
         $userToken = new UserToken();
         if (isset($_POST['login'])) {
             $login = $_POST['login'];
-            $stmt =  $this->bdd->prepare('SELECT * FROM users WHERE login = ?');
+            $stmt = $this->bdd->prepare('SELECT * FROM users WHERE login = ?');
             $stmt->execute([$login]);
             $result = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -109,52 +122,77 @@
         return $response;
     }
 
-    public function editProfil(){
-        $response= [];
-        $userToken = new UserToken();
-        $id = intval($userToken->AuthBearerTokenVerify()['userInfo']->user_id);
+    public function editProfil()
+    {
+        $response = ['success' => [], 'err' => [], 'status' => [], 'data' => []];
+        $infoUser = $this->isUser();
 
-        if (isset($_POST['login'])) {
+        if($infoUser && $infoUser['is_user'] === true) {
+            $id = intval($infoUser['infoUser']->user_id);
 
-            if (strlen($_POST['login']) <= 3) {
-                $response['err'] = 'login trop court';
-            } else {
-                $login = $_POST['login'];
-                $stmt = $this->bdd->prepare('SELECT * FROM users WHERE login = ?');
-                $stmt->execute([$login]);
-                if ($stmt->rowCount() > 0) {
-                    $response['err'] = $login . ' existe déjà';
+            if (isset($_POST['login']) && isset($_POST['password']) && isset($_POST['email'])) {
 
-                } else {
-                    $response[] = $login . ' n existe pas';
-                    if ($_POST['email'] && $_POST['password']) {
+                if (filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
+                    $stmt = $this->bdd->prepare('SELECT * FROM users WHERE email = ? AND id != ?');
+                    $stmt->execute([$_POST['email'],$id]);
+                    if ($stmt->rowCount() > 0) {
 
-                        $email = ($_POST['email']);
-                        $password = $_POST['password'];
-
-
-                        $password = password_hash($password, PASSWORD_BCRYPT);
-
-                        $stmtInsert = $this->bdd->prepare('UPDATE users SET login = ? ,password = ?, email= ? WHERE id = ? ');
-                        $stmtInsert->execute([$login, $password, $email, $id]);
-                        $response['err'] = 'utilisateur bien mis à jour !';
-                        $response['status'] = true;
+                        $response['err'][] .= $_POST['email'] . ' existe déjà';
 
                     }
+                }else{
+                    $response['err'][] .= $_POST['email'] . ' n\'est pas un mail';
                 }
-            }
 
+                if (strlen($_POST['login']) <= 3) {
+                    $response['err'][] .= 'Login trop court';
+                } else {
+                    $login = $_POST['login'];
+                    $stmt = $this->bdd->prepare('SELECT * FROM users WHERE login = ? AND id != ?');
+                    $stmt->execute([$login,$id]);
+                    if ($stmt->rowCount() > 0) {
+                        $response['err'][] .= $login . ' existe déjà';
+
+                    } else {
+                        if ($_POST['email'] && $_POST['password']) {
+
+                            $email = ($_POST['email']);
+                            $password = $_POST['password'];
+
+                            $password_regex = "/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,}$/";
+                            if (!preg_match($password_regex, $password)) {
+                                $response['err'][] .= 'Votre mot de passe doit contenir au moins 8 caractères, une lettre en majuscule, une lettre en minuscule, un chiffre et un caractère spécifique';
+                            } else {
+
+                                $password = password_hash($password, PASSWORD_BCRYPT);
+
+                                $stmtInsert = $this->bdd->prepare('UPDATE users SET login = ? ,password = ?, email= ? WHERE id = ? ');
+                                $stmtInsert->execute([$login, $password, $email, $id]);
+                                $response['status'][] .= 'Utilisateur bien mis à jour !';
+                            }
+
+
+                        }
+                    }
+                }
+
+            }
         }
+
         return $response;
     }
-    
-    public function isUser(){
+
+    public
+    function isUser()
+    {
         $userToken = new UserToken();
         return $userToken->AuthBearerTokenVerify();
     }
 
-    public function getUserById(){
-        $response= [];
+    public
+    function getUserById()
+    {
+        $response = [];
         $userToken = new UserToken();
         $userToken->AuthBearerTokenVerify();
 
@@ -164,20 +202,26 @@
         $stmt->execute([$id]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($result === false) {
-            $response['result'] = "Aucun utilisateur ne correspond";
+            $response['data'] = "Aucun utilisateur ne correspond";
         } else {
-            $response['result'] = $result;
+            $response['data'] = $result;
         }
         return $response;
     }
-    public function getAllUsers(){
+
+    public
+    function getAllUsers()
+    {
         $stmt = $this->bdd->prepare('SELECT id,login,email FROM users');
         $stmt->execute();
         $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $response['data'] = $results;
         return $response;
     }
-    public function deleteUser(){
+
+    public
+    function deleteUser()
+    {
         $idUserToDelete = intval($_POST['deleteUser']);
         $stmt = $this->bdd->prepare('DELETE FROM users WHERE id = ?');
         $stmt->execute([$idUserToDelete]);
@@ -186,5 +230,5 @@
 
         return $response;
     }
-    
+
 }

@@ -11,12 +11,8 @@ header('Access-Control-Allow-Credentials: true');
 const SECRET_KEY = 'KZ2023LpTM';
 require_once 'vendor/autoload.php';
 require_once 'Autoloader.php';
-//
-//use Firebase\JWT\Key;
-//use Firebase\JWT\JWT;
 
 $bdd = new Bdd();
-//$bdd = new PDO('mysql:dbname=reactapi;host=localhost', 'root', '');
 
 //
 $response = [];
@@ -79,6 +75,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($_POST['page'] === 'deleteQuote') {
         $response = $quotes->deleteQuote();
+    }
+    if($_POST['page'] === 'editQuote'){
+        $response = $quotes->modifyQuote();
     }
 
 }
