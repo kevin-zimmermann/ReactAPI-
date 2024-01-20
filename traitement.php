@@ -48,6 +48,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($_POST['page'] === 'profil') {
         $response = $user->editProfil();
     }
+    if ($_POST['page'] === 'profilPassword') {
+        $response = $user->changePassword();
+    }
     // Check si c'est un user
     if ($_POST['page'] === 'isUser') {
         $response = $user->isUser();

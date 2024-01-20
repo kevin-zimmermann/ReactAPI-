@@ -45,8 +45,7 @@
         $user = new Users();
         $infoUser = $user->isUser();
         if ($infoUser && $infoUser['is_user'] === true) {
-            if (isset($_POST['quote']) && $_POST['idQuoteToEdit']) {
-
+            if (isset($_POST['quote']) && !empty($_POST['idQuoteToEdit'])) {
                 if (strlen($_POST['quote']) === 0) {
                     $response['err'] = 'Aucune citation !';
                 } else {
@@ -63,7 +62,6 @@
                 }
             }
         }
-
 
         return $response;
     }

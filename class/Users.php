@@ -24,11 +24,10 @@
 
         if ($_POST['login'] === "" && $_POST['password'] === "" && $_POST['email'] === "") {
             $response["err"][] = "Veuillez remplir les champs";
-//            $response['err'][] .= "Veuillez remplir les champs";
         } else {
-            if (isset($_POST['login'])) {
+            if (!empty($_POST['login'])) {
                 if (strlen($_POST['login']) <= 3) {
-                    $response['err'][] .= 'login trop court';
+                    $response['err'][] .= 'Login trop court';
                 } else {
                     $login = $_POST['login'];
                     $stmt = $this->bdd->prepare('SELECT * FROM users WHERE login = ?');
@@ -37,54 +36,62 @@
                         $response["err"][] = $login . ' existe déjà';
 
                     }
-                    if ($_POST['email'] && $_POST['password']) {
-                        if (filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
-                            $email = $_POST['email'];
-                            $password = $_POST['password'];
-                            $password_regex = "/^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-]).{8,}$/";
-                            if (!preg_match($password_regex, $password)) {
-                                $response['err'][] .= 'Votre mot de passe doit contenir au moins 8 caractères, une lettre en majuscule, une lettre en minuscule, un chiffre et un caractère spécifique';
-                            } else {
-
-
-                                $password = password_hash($password, PASSWORD_BCRYPT);
-
-
-                                $stmt = $this->bdd->prepare('SELECT * FROM users WHERE email = ?');
-                                $stmt->execute([$email]);
-                                if ($stmt->rowCount() > 0) {
-
-                                    $response['err'][] .= $email . ' existe déjà';
-
-                                } else {
-                                    $stmtInsert = $this->bdd->prepare('INSERT INTO users (login,password,email) VALUES(?,?,?)');
-                                    $stmtInsert->execute([$login, $password, $email]);
-                                    $response['success']['status'] .= 'utilisateur bien enregistré !';
-                                }
-                            }
-
-                        } else {
-                            $response['err'][] .= "Vous nous avez pas fourni un email";
-                        }
-
-                    } else {
-                        $response['err'][] .= 'Veuillez remplir le MDP et/ou l\'email';
-                    }
                 }
+            } else {
+                $response["err"][] = 'Vous n\'avez pas rentré de login';
             }
 
         }
+        if (!empty($_POST['email'])) {
+            if (filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
+                $email = $_POST['email'];
+                $stmt = $this->bdd->prepare('SELECT * FROM users WHERE email = ?');
+                $stmt->execute([$email]);
+                if ($stmt->rowCount() > 0) {
+
+                    $response['err'][] .= $email . ' existe déjà';
+
+                }
+            } else {
+                $response['err'][] .= "Email au mauvais format !";
+            }
+        } else {
+            $response['err'][] .= "Vous nous avez pas fourni un email";
+        }
+
+        if (!empty($_POST['password'])) {
+            $password = $_POST['password'];
+            $password_regex = "/^(?=.*?[A-Z])(?=.*?[a-z])(?=.*?[0-9])(?=.*?[#?!@$%^&*-+]).{8,}$/";
+            if (!preg_match($password_regex, $password)) {
+                $response['err'][] .= 'Votre mot de passe doit contenir au moins 8 caractères, une lettre en majuscule, une lettre en minuscule, un chiffre et un caractère spécifique';
+            } else {
+                $password = password_hash($password, PASSWORD_BCRYPT);
+            }
+        } else {
+            $response['err'][] .= "Vous nous avez pas fourni de mot de passe";
+        }
+
+        if (empty($response['err'])) {
+
+            $stmtInsert = $this->bdd->prepare('INSERT INTO users (login,password,email) VALUES(?,?,?)');
+            $stmtInsert->execute([$login, $password, $email]);
+            $response['success'] .= 'utilisateur bien enregistré !';
+        }
+
+
         return $response;
 
     }
 
-    public function login()
+
+    public
+    function login()
     {
 
         $response = ['success' => [], 'err' => [], 'status' => [], 'data' => []];
-
         $userToken = new UserToken();
-        if (isset($_POST['login'])) {
+
+        if (!empty($_POST['login'])) {
             $login = $_POST['login'];
             $stmt = $this->bdd->prepare('SELECT * FROM users WHERE login = ?');
             $stmt->execute([$login]);
@@ -94,9 +101,10 @@
                 $response['err'][] = 'Aucun utilisateur a été trouvé';
 
             } else {
-                if ($_POST['password']) {
+                if (!empty($_POST['password'])) {
                     $password = $_POST['password'];
-                    if (password_verify($password, $result['password'])) {
+
+                    if (password_verify($password, $result['password']) && empty($response['err'])) {
                         //GENERATE TOKEN
                         $payload = [
                             'user_id' => $result['id'],
@@ -115,70 +123,109 @@
                         $response['err'][] = 'Aucun utilisateur a été trouvé';
                     }
 
+                } else {
+                    $response['err'][] = 'Vous n\'avez entré aucun MDP';
                 }
-
             }
+
+        } else {
+            $response['err'][] = 'Vous n\'avez entré aucun login';
+
         }
+
         return $response;
     }
 
-    public function editProfil()
+    public
+    function editProfil()
     {
         $response = ['success' => [], 'err' => [], 'status' => [], 'data' => []];
         $infoUser = $this->isUser();
+        if ($infoUser && $infoUser['is_user'] === true) {
+            $id = $infoUser['infoUser']->user_id;
 
-        if($infoUser && $infoUser['is_user'] === true) {
-            $id = intval($infoUser['infoUser']->user_id);
-
-            if (isset($_POST['login']) && isset($_POST['password']) && isset($_POST['email'])) {
-
-                if (filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
-                    $stmt = $this->bdd->prepare('SELECT * FROM users WHERE email = ? AND id != ?');
-                    $stmt->execute([$_POST['email'],$id]);
-                    if ($stmt->rowCount() > 0) {
-
-                        $response['err'][] .= $_POST['email'] . ' existe déjà';
-
-                    }
-                }else{
-                    $response['err'][] .= $_POST['email'] . ' n\'est pas un mail';
-                }
-
-                if (strlen($_POST['login']) <= 3) {
-                    $response['err'][] .= 'Login trop court';
-                } else {
-                    $login = $_POST['login'];
-                    $stmt = $this->bdd->prepare('SELECT * FROM users WHERE login = ? AND id != ?');
-                    $stmt->execute([$login,$id]);
-                    if ($stmt->rowCount() > 0) {
-                        $response['err'][] .= $login . ' existe déjà';
+            if (isset($_POST['login']) && isset($_POST['email'])) {
+                var_dump('ici');
+                if (!empty($_POST['email'])) {
+                    if (filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
+                        $email = $_POST['email'];
+                        $stmt = $this->bdd->prepare('SELECT * FROM users WHERE email = ? AND id != ?');
+                        $stmt->execute([$_POST['email'], $id]);
+                        if ($stmt->rowCount() != 0) {
+                            $response['err'][] .= $_POST['email'] . ' existe déjà';
+                        }
 
                     } else {
-                        if ($_POST['email'] && $_POST['password']) {
-
-                            $email = ($_POST['email']);
-                            $password = $_POST['password'];
-
-                            $password_regex = "/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,}$/";
-                            if (!preg_match($password_regex, $password)) {
-                                $response['err'][] .= 'Votre mot de passe doit contenir au moins 8 caractères, une lettre en majuscule, une lettre en minuscule, un chiffre et un caractère spécifique';
-                            } else {
-
-                                $password = password_hash($password, PASSWORD_BCRYPT);
-
-                                $stmtInsert = $this->bdd->prepare('UPDATE users SET login = ? ,password = ?, email= ? WHERE id = ? ');
-                                $stmtInsert->execute([$login, $password, $email, $id]);
-                                $response['status'][] .= 'Utilisateur bien mis à jour !';
-                            }
+                        $response['err'][] .= $_POST['email'] . ' n\'est pas un mail';
+                    }
+                } else {
+                    $response['err'][] .= 'Aucun mail présent';
+                }
 
 
+                if (!empty($_POST['login'])) {
+                    if (strlen($_POST['login']) <= 3) {
+                        $response['err'][] .= 'Login trop court';
+                    } else {
+                        $login = $_POST['login'];
+                        $stmt = $this->bdd->prepare('SELECT * FROM users WHERE login = ? AND id != ?');
+                        $stmt->execute([$login, $id]);
+                        if ($stmt->rowCount() > 0) {
+                            $response['err'][] .= $login . ' existe déjà';
                         }
                     }
+
+                } else {
+                    $response['err'][] .= 'Aucun Login n\'est présent';
+                }
+
+                if (empty($response['err'])) {
+                    $stmtInsert = $this->bdd->prepare('UPDATE users SET login = ?, email= ? WHERE id = ? ');
+                    $stmtInsert->execute([$login, $email, $id]);
+                    $response['status'][] .= 'Utilisateur bien mis à jour !';
                 }
 
             }
+        } else {
+            $response['err'][] .= 'Un problème a été detecté, veuillez réessayer !';
         }
 
+        return $response;
+    }
+
+    public function changePassword()
+    {
+        $response = ['success' => [], 'err' => [], 'status' => [], 'data' => []];
+        $infoUser = $this->isUser();
+        if ($infoUser && $infoUser['is_user'] === true) {
+            $id = intval($infoUser['infoUser']->user_id);
+            if (!empty($_POST["password"]) && !empty($_POST["confPassword"])) {
+                $password = $_POST['password'];
+                $confPassword = $_POST['confPassword'];
+                if ($password === $confPassword) {
+                    var_dump('test');
+                    $password_regex = "/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,}$/";
+                    if (!preg_match($password_regex, $password)) {
+                        $response['err'][] .= 'Votre mot de passe doit contenir au moins 8 caractères, une lettre en majuscule, une lettre en minuscule, un chiffre et un caractère spécifique';
+                    } else {
+                        $password = password_hash($password, PASSWORD_BCRYPT);
+
+                    }
+                } else {
+                    $response['err'][] .= 'Vos MDP ne correspondent pas !';
+                }
+
+            } else {
+                $response['err'][] .= 'Aucun MDP n\'est présent';
+            }
+            if (empty($response['err'])) {
+                $stmtInsert = $this->bdd->prepare('UPDATE users SET password = ? WHERE id = ? ');
+                $stmtInsert->execute([$password, $id]);
+                $response['status'][] .= 'Utilisateur bien mis à jour !';
+            }
+        } else {
+            $response['err'][] .= 'Un problème a été detecté, veuillez réessayer !';
+        }
         return $response;
     }
 
@@ -196,15 +243,16 @@
         $userToken = new UserToken();
         $userToken->AuthBearerTokenVerify();
 
-        $id = $_POST['id'];
-
-        $stmt = $this->bdd->prepare('SELECT id,login,email FROM users WHERE id = ? ');
-        $stmt->execute([$id]);
-        $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        if ($result === false) {
-            $response['data'] = "Aucun utilisateur ne correspond";
-        } else {
-            $response['data'] = $result;
+        if ($_POST['id']) {
+            $id = $_POST['id'];
+            $stmt = $this->bdd->prepare('SELECT id,login,email FROM users WHERE id = ? ');
+            $stmt->execute([$id]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            if ($result === false) {
+                $response['data'] = "Aucun utilisateur ne correspond";
+            } else {
+                $response['data'] = $result;
+            }
         }
         return $response;
     }
@@ -222,11 +270,16 @@
     public
     function deleteUser()
     {
-        $idUserToDelete = intval($_POST['deleteUser']);
-        $stmt = $this->bdd->prepare('DELETE FROM users WHERE id = ?');
-        $stmt->execute([$idUserToDelete]);
+        $response = ['success' => [], 'err' => [], 'status' => [], 'data' => []];
 
-        $response['status'] = "Utilisateur supprimé";
+        if (!empty($_POST['deleteUser'])) {
+            $idUserToDelete = intval($_POST['deleteUser']);
+            $stmt = $this->bdd->prepare('DELETE FROM users WHERE id = ?');
+            $stmt->execute([$idUserToDelete]);
+
+            $response['status'] = "Utilisateur supprimé";
+        }
+
 
         return $response;
     }
