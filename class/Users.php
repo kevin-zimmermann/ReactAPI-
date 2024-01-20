@@ -145,7 +145,6 @@
             $id = $infoUser['infoUser']->user_id;
 
             if (isset($_POST['login']) && isset($_POST['email'])) {
-                var_dump('ici');
                 if (!empty($_POST['email'])) {
                     if (filter_var($_POST['email'], FILTER_VALIDATE_EMAIL)) {
                         $email = $_POST['email'];
@@ -203,7 +202,6 @@
                 $password = $_POST['password'];
                 $confPassword = $_POST['confPassword'];
                 if ($password === $confPassword) {
-                    var_dump('test');
                     $password_regex = "/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+])[A-Za-z\d!@#$%^&*()_+]{8,}$/";
                     if (!preg_match($password_regex, $password)) {
                         $response['err'][] .= 'Votre mot de passe doit contenir au moins 8 caractères, une lettre en majuscule, une lettre en minuscule, un chiffre et un caractère spécifique';
